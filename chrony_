@@ -7,6 +7,7 @@
 
 use strict;
 use File::Spec;
+use Fcntl qw(:flock);
 
 my %modes = (
   "stratum" => {
@@ -145,7 +146,9 @@ sub host2name {
 # chronyの出力を得る
 sub get_chronyc_sources {
   # 1分以内に取得したデータはキャッシュする
-  my $filename = File::Spec->tmpdir().'/munin.chronyc.sources.'.$ENV{USER}.'.dat';
+  my $user = getpwuid($>);
+  my $tempdir = ( File::Spec->tmpdir or '/tmp' );
+  my $filename = $tempdir.'/munin.chronyc.sources.'.$user.'.dat';
   my $time = time;
   my $data;
 
@@ -155,12 +158,14 @@ sub get_chronyc_sources {
       $data = do { local $/; <$fh> };
       close $fh;
   } else {
-      # 現在のデータを得る
-      $data = `$chronyc sources`;
-      # 一時ファイルに保存する
-      open my $fh, '>', $filename or die $!;
-      print $fh $data;
-      close $fh;
+    # ファイルをロックしておく
+    open my $fh, '>', $filename or die $!;
+    flock($fh, LOCK_EX);
+    # 現在のデータを得る
+    $data = `$chronyc sources`;
+    # 一時ファイルに保存する
+    print $fh $data;
+    close $fh;
   }
   return $data;
 }
