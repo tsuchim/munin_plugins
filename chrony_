@@ -3,6 +3,9 @@
 #
 # Plugin to monitor chrony sources.
 #
+# Offset は local time - source time (値がプラスなら、ローカルの時計はソースより進んでいる)
+# chrony.conf の refclock の offset の数字は、大きくなるとローカルクロックは進む(単位は秒)
+#
 #%# family=contrib
 
 use strict;
