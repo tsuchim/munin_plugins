@@ -106,8 +106,14 @@ foreach my $line (@lines) {
     # 8進数表記で、1のビットの数を数える
     $value = sprintf("%b", oct($value)) =~ tr/1//;
   }
-  printf("%s.value %e\n", host2name($host), $value);
+  if ( $mode eq 'offset' or $mode eq 'jitter') {
+    printf("%s.value %e\n", host2name($host), $value);
+  }else{
+    printf("%s.value %u\n", host2name($host), $value);
+  }
 }
+
+exit 0;
 
 # 接尾辞を展開する
 sub expand_suffix {
