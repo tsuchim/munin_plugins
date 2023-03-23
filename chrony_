@@ -1,0 +1,160 @@
+#!/usr/bin/perl
+# -*- sh -*-
+#
+# Plugin to monitor chrony sources.
+#
+#%# family=contrib
+
+use strict;
+use File::Spec;
+
+my %modes = (
+  "stratum" => {
+    "config" => {
+      "title" => "Stratum",
+      "args" => "--base 1000",
+      "vlabel" => "Stratum",
+    },
+    "col" => 2,
+  },
+  "poll" => {
+    "config" => {
+      "title" => "Poll",
+      "args" => "--base 1000",
+      "vlabel" => "Poll",
+    },
+    "col" => 3,
+  },
+  "reach" => {
+    "config" => {
+      "title" => "Reach",
+      "args" => "--base 1000",
+      "vlabel" => "Bits",
+    },
+    "col" => 4,
+  },
+  "offset" => {
+    "config" => {
+      "title" => "Offset",
+      "args" => "--base 1000",
+      "vlabel" => "sec",
+    },
+    "col" => 6,
+  },
+  "jitter" => {
+    "config" => {
+      "title" => "Jitter",
+      "args" => "--base 1000",
+      "vlabel" => "Jsec",
+    },
+    "col" => 9,
+  }
+);
+
+my $mode;
+if ( $0 =~ m/_([a-z]+)$/ ) {
+    $mode = $1;
+    if( ! defined $modes{$mode} ) {
+        print join(',',keys(%modes));
+        die "Unknown mode $mode";
+    }
+}else{
+    die "Cannot determine mode from $0";
+}
+
+my $chronyc = "/usr/bin/chronyc";
+
+if( $ARGV[0] eq "autoconf" ) {
+    if( -x $chronyc ) {
+        print "yes";
+    } else {
+        print "no";
+    }
+    exit 0;
+}
+
+# print values
+my @lines = split /\n/, get_chronyc_sources();
+# ==== が出てくるまで読み飛ばす
+while( $_ = shift @lines ) {
+    last if( $_ =~ m/^={10,}/ );
+}
+
+if( $ARGV[0] eq "config" ) {
+    foreach my $key (keys %{$modes{$mode}{config}}) {
+        printf("graph_%s %s\n", $key, $modes{$mode}{config}{$key});
+    }
+    print "graph_category time\n";
+    printf("graph_info This graph shows %s of chrony sources.\n", $modes{$mode}{config}{title});
+    foreach my $line (@lines) {
+      my @fields = split(/[ \[\]]+/, $line);
+      my $host = $fields[1];
+      printf("%s.label %s\n", host2name($host), $host);
+      printf("%s.type GAUGE\n", host2name($host) );
+      printf("%s.draw LINE\n", host2name($host));
+    }
+    exit 0;
+}
+
+foreach my $line (@lines) {
+  my @fields = split(/[ \[\]]+/, $line);
+  my $host = $fields[1];
+  my $value = $fields[$modes{$mode}{"col"}];
+  if( $mode eq "offset" || $mode eq "jitter" ) {
+    $value = expand_suffix($value);
+  }elsif( $mode eq "reach" ) {
+    # 8進数表記で、1のビットの数を数える
+    $value = sprintf("%b", oct($value)) =~ tr/1//;
+  }
+  printf("%s.value %e\n", host2name($host), $value);
+}
+
+# 接尾辞を展開する
+sub expand_suffix {
+  my $s = shift;
+  if( $s =~ m/([+-]?)(\d+)([mun]?)s/ ) {
+    my $v = $2;
+    if( $3 eq 'm' ) {
+      $v *= 0.001;
+    } elsif( $3 eq 'u' ) {
+      $v *= 0.000001;
+    } elsif( $3 eq 'n' ) {
+      $v *= 0.000000001;
+    }
+    if( $1 eq '-' ) {
+      $v *= -1;
+    }
+    return $v;
+  }
+  die "Cannot expand suffix of $s";
+}
+
+# ホスト名から要素名を作る
+sub host2name {
+  my $host = shift;
+  $host =~ s/[^a-zA-Z0-9_]//g;
+  return $host;
+}
+
+# chronyの出力を得る
+sub get_chronyc_sources {
+  # 1分以内に取得したデータはキャッシュする
+  my $filename = File::Spec->tmpdir().'/munin.chronyc.sources.'.$ENV{USER}.'.dat';
+  my $time = time;
+  my $data;
+
+  # 1分以内に取得したデータがあればそれを使う
+  if (-e $filename && $time - (stat $filename)[9] < 60) {
+      open my $fh, '<', $filename or die $!;
+      $data = do { local $/; <$fh> };
+      close $fh;
+  } else {
+      # 現在のデータを得る
+      $data = `$chronyc sources`;
+      # 一時ファイルに保存する
+      open my $fh, '>', $filename or die $!;
+      print $fh $data;
+      close $fh;
+  }
+  return $data;
+}
