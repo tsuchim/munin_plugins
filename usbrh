@@ -1,0 +1,43 @@
+#!/bin/sh
+# -*- sh -*-
+#
+# Plugin to monitor temperature and humidity through usbrh.
+#
+#%# family=contrib
+
+# . $MUNIN_LIBDIR/plugins/plugin.sh
+USBRH=/usr/local/bin/usbrh
+
+if [ "$1" = "autoconf" ]; then
+        if [ -x "$USBRH" ]; then
+                echo yes
+                exit 0
+        else
+                echo no
+                exit 0
+        fi
+fi
+
+if [ "$1" = "config" ]; then
+
+        echo 'graph_title Air Temperature/Humidity'
+        echo 'graph_args --base 1000'
+        echo 'graph_vlabel temp in ｰC/humid in %'
+        echo 'graph_category sensors'
+	echo 'airtemp.label Air Temperature'
+	echo 'airhmd.label Air Humidity'
+        exit 0
+fi
+
+# $USBRH | awk '{print "airtemp.value",$1,"\nairhmd.value",$2}'
+
+# sometimes USBRH return wrong value, retry while humidity is less than 0
+airtemp=-99
+airhmd=-99
+set -- `$USBRH`
+airtemp=$1;
+airhmd=$2;
+
+echo "airtemp.value $airtemp"
+echo "airhmd.value $airhmd"
+
