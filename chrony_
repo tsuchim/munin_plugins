@@ -17,7 +17,7 @@ my %modes = (
     "config" => {
       "title" => "Frequency",
       "args" => "--base 1000",
-      "vlabel" => "ppm",
+      "vlabel" => "step/sec",
     },
     "col" => 4,
   },
@@ -25,7 +25,7 @@ my %modes = (
     "config" => {
       "title" => "Frequency Skew",
       "args" => "--base 1000",
-      "vlabel" => "ppm",
+      "vlabel" => "step/sec",
     },
     "col" => 5,
   },
@@ -83,7 +83,7 @@ if( $ARGV[0] eq "config" ) {
     print "graph_category time\n";
     printf("graph_info This graph shows %s of chrony sources.\n", $modes{$mode}{config}{title});
     foreach my $line (@lines) {
-      my @fields = split(/[ \[\]>]+/, $line);
+      my @fields = split(/\s+/, $line);
       my $host = $fields[0];
       printf("%s.label %s\n", host2name($host), $host);
       printf("%s.type GAUGE\n", host2name($host) );
@@ -93,11 +93,13 @@ if( $ARGV[0] eq "config" ) {
 }
 
 foreach my $line (@lines) {
-  my @fields = split(/[ \[\]>]+/, $line);
+  my @fields = split(/[\s\[\]>]+/, $line);
   my $host = $fields[0];
   my $value = $fields[$modes{$mode}{"col"}];
   if( $mode eq "offset" || $mode eq "jitter" ) {
     $value = expand_suffix($value);
+  }elsif( $mode eq "frequency" || $mode eq "freqskew" ) {
+    $value = $value * 1e-6; # ppm to Hz
   }elsif( $mode eq "reach" ) {
     # 8進数表記で、1のビットの数を数える
     $value = sprintf("%b", oct($value)) =~ tr/1//;
@@ -105,11 +107,7 @@ foreach my $line (@lines) {
 
   # NR が 4 以上のものだけを表示する
   if( 4 <= $fields[2] ) {
-    if ( $mode eq 'offset' or $mode eq 'jitter') {
-      printf("%s.value %e\n", host2name($host), $value);
-    }else{
-      printf("%s.value %u\n", host2name($host), $value);
-    }
+    printf("%s.value %e\n", host2name($host), $value);
   }
 }
 exit 0;
