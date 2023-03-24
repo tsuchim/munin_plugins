@@ -13,29 +13,21 @@ use File::Spec;
 use Fcntl qw(:flock);
 
 my %modes = (
-  "stratum" => {
+  "frequency" => {
     "config" => {
-      "title" => "Stratum",
+      "title" => "Frequency",
       "args" => "--base 1000",
-      "vlabel" => "Stratum",
-    },
-    "col" => 2,
-  },
-  "poll" => {
-    "config" => {
-      "title" => "Poll",
-      "args" => "--base 1000",
-      "vlabel" => "Poll",
-    },
-    "col" => 3,
-  },
-  "reach" => {
-    "config" => {
-      "title" => "Reach",
-      "args" => "--base 1000",
-      "vlabel" => "Bits",
+      "vlabel" => "ppm",
     },
     "col" => 4,
+  },
+  "freqskew" => {
+    "config" => {
+      "title" => "Frequency Skew",
+      "args" => "--base 1000",
+      "vlabel" => "ppm",
+    },
+    "col" => 5,
   },
   "offset" => {
     "config" => {
@@ -47,11 +39,11 @@ my %modes = (
   },
   "jitter" => {
     "config" => {
-      "title" => "Jitter",
+      "title" => "Standard Deviation of Offset",
       "args" => "--base 1000",
-      "vlabel" => "Jsec",
+      "vlabel" => "sec",
     },
-    "col" => 9,
+    "col" => 7,
   }
 );
 
@@ -91,8 +83,8 @@ if( $ARGV[0] eq "config" ) {
     print "graph_category time\n";
     printf("graph_info This graph shows %s of chrony sources.\n", $modes{$mode}{config}{title});
     foreach my $line (@lines) {
-      my @fields = split(/[ \[\]]+/, $line);
-      my $host = $fields[1];
+      my @fields = split(/[ \[\]>]+/, $line);
+      my $host = $fields[0];
       printf("%s.label %s\n", host2name($host), $host);
       printf("%s.type GAUGE\n", host2name($host) );
       printf("%s.draw LINE\n", host2name($host));
@@ -101,8 +93,8 @@ if( $ARGV[0] eq "config" ) {
 }
 
 foreach my $line (@lines) {
-  my @fields = split(/[ \[\]]+/, $line);
-  my $host = $fields[1];
+  my @fields = split(/[ \[\]>]+/, $line);
+  my $host = $fields[0];
   my $value = $fields[$modes{$mode}{"col"}];
   if( $mode eq "offset" || $mode eq "jitter" ) {
     $value = expand_suffix($value);
@@ -110,13 +102,16 @@ foreach my $line (@lines) {
     # 8進数表記で、1のビットの数を数える
     $value = sprintf("%b", oct($value)) =~ tr/1//;
   }
-  if ( $mode eq 'offset' or $mode eq 'jitter') {
-    printf("%s.value %e\n", host2name($host), $value);
-  }else{
-    printf("%s.value %u\n", host2name($host), $value);
+
+  # NR が 4 以上のものだけを表示する
+  if( 4 <= $fields[2] ) {
+    if ( $mode eq 'offset' or $mode eq 'jitter') {
+      printf("%s.value %e\n", host2name($host), $value);
+    }else{
+      printf("%s.value %u\n", host2name($host), $value);
+    }
   }
 }
-
 exit 0;
 
 # 接尾辞を展開する
@@ -151,7 +146,7 @@ sub get_chronyc_sources {
   # 1分以内に取得したデータはキャッシュする
   my $user = getpwuid($>);
   my $tempdir = ( File::Spec->tmpdir or '/tmp' );
-  my $filename = $tempdir.'/munin.chronyc.sources.'.$user.'.dat';
+  my $filename = $tempdir.'/munin.chronyc.sourcestats.'.$user.'.dat';
   my $time = time;
   my $data;
 
@@ -165,7 +160,7 @@ sub get_chronyc_sources {
     open my $fh, '>', $filename or die $!;
     flock($fh, LOCK_EX);
     # 現在のデータを得る
-    $data = `$chronyc sources`;
+    $data = `$chronyc sourcestats`;
     # 一時ファイルに保存する
     print $fh $data;
     close $fh;
