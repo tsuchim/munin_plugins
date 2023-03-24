@@ -37,7 +37,7 @@ my %modes = (
     },
     "col" => 6,
   },
-  "jitter" => {
+  "stddev" => {
     "config" => {
       "title" => "Standard Deviation of Offset",
       "args" => "--base 1000",
@@ -96,7 +96,7 @@ foreach my $line (@lines) {
   my @fields = split(/[\s\[\]>]+/, $line);
   my $host = $fields[0];
   my $value = $fields[$modes{$mode}{"col"}];
-  if( $mode eq "offset" || $mode eq "jitter" ) {
+  if( $mode eq "offset" || $mode eq "jitter" || $mode eq "stddev" ) {
     $value = expand_suffix($value);
   }elsif( $mode eq "frequency" || $mode eq "freqskew" ) {
     $value = $value * 1e-6; # ppm to Hz
@@ -118,11 +118,11 @@ sub expand_suffix {
   if( $s =~ m/([+-]?)(\d+)([mun]?)s/ ) {
     my $v = $2;
     if( $3 eq 'm' ) {
-      $v *= 0.001;
+      $v *= 1e-3;
     } elsif( $3 eq 'u' ) {
-      $v *= 0.000001;
+      $v *= 1e-6;
     } elsif( $3 eq 'n' ) {
-      $v *= 0.000000001;
+      $v *= 1e-9;
     }
     if( $1 eq '-' ) {
       $v *= -1;
