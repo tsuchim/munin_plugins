@@ -54,17 +54,16 @@ if ( $0 =~ m/_([a-z]+)$/ ) {
         print join(',',keys(%modes));
         die "Unknown mode $mode";
     }
-}else{
-    die "Cannot determine mode from $0";
 }
 
 my $chronyc = "/usr/bin/chronyc";
 
 if( $ARGV[0] eq "autoconf" ) {
     if( -x $chronyc ) {
-        print "yes";
+        print "yes\n";
     } else {
-        print "no";
+        print "no ( $chronyc not found )\n";
+        exit 1;
     }
     exit 0;
 }
@@ -91,6 +90,15 @@ if( $ARGV[0] eq "config" ) {
     }
     exit 0;
 }
+
+if( $ARGV[0] eq "suggest" ) {
+    foreach my $key (keys %modes) {
+        printf("%s\n", $key);
+    }
+    exit 0;
+}
+
+die("Unknown mode $mode") if( ! defined $modes{$mode} );
 
 foreach my $line (@lines) {
   my @fields = split(/[\s\[\]>]+/, $line);
