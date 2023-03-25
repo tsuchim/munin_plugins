@@ -169,6 +169,9 @@ sub get_chronyc_sources {
   my $time = time;
   my $data;
 
+  # 一時ファイルを書き込めないことがあるので、毎回実行する
+  return`$chronyc sourcestats`;
+
   # 1分以内に取得したデータがあればそれを使う
   if (-e $filename && $time - (stat $filename)[9] < 60) {
       open my $fh, '<', $filename or die $!;
