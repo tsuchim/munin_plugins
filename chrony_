@@ -6,9 +6,14 @@
 # Offset は local time - source time (値がプラスなら、ローカルの時計はソースより進んでいる)
 # chrony.conf の refclock の offset の数字は、大きくなるとローカルクロックは進む(単位は秒)
 #
+# SELinux のポリシー設定コマンド
+# semanage fcontext -a -t unconfined_munin_plugin_exec_t '/usr/local/share/munin/plugins/chrony_'
+#
 #%# family=contrib
 
 use strict;
+use warnings;
+use Munin::Plugin;
 use File::Spec;
 use Fcntl qw(:flock);
 use IPC::Run qw(run);
@@ -164,32 +169,10 @@ sub host2name {
 sub get_chronyc_sources {
   # 1分以内に取得したデータはキャッシュする
   my $user = getpwuid($>);
-  my $tempdir = '/tmp';
-  $tempdir = File::Spec->tmpdir if -d File::Spec->tmpdir;
-  my $filename = $tempdir.'/munin.chronyc.sourcestats.'.$user.'.dat';
-  my $time = time;
-  my $data;
 
   # 一時ファイルを書き込めないことがあるので、毎回実行する
   my @cmd = ($chronyc, 'sourcestats');
   run \@cmd, '>', \my $stdout;
 
   return $stdout;
-
-  # 1分以内に取得したデータがあればそれを使う
-  if (-e $filename && $time - (stat $filename)[9] < 60) {
-      open my $fh, '<', $filename or die $!;
-      $data = do { local $/; <$fh> };
-      close $fh;
-  } else {
-    # ファイルをロックしておく
-    open my $fh, '>', $filename or die $!;
-    flock($fh, LOCK_EX);
-    # 現在のデータを得る
-    $data = `$chronyc sourcestats`;
-    # 一時ファイルに保存する
-    print $fh $data;
-    close $fh;
-  }
-  return $data;
 }
