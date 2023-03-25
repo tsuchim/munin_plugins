@@ -64,7 +64,7 @@ if ( $0 =~ m/_([a-z]+)$/ ) {
 
 my $chronyc = "/usr/bin/chronyc";
 
-if( $ARGV[0] eq "autoconf" ) {
+if( defined $ARGV[0] && $ARGV[0]eq "autoconf" ) {
     if( -x $chronyc ) {
         print "yes\n";
     } else {
@@ -81,7 +81,7 @@ while( $_ = shift @lines ) {
     last if( $_ =~ m/^={10,}/ );
 }
 
-if( $ARGV[0] eq "config" ) {
+if( defined $ARGV[0] && $ARGV[0] eq "config" ) {
     foreach my $key (keys %{$modes{$mode}{config}}) {
         printf("graph_%s %s\n", $key, $modes{$mode}{config}{$key});
     }
@@ -97,7 +97,7 @@ if( $ARGV[0] eq "config" ) {
     exit 0;
 }
 
-if( $ARGV[0] eq "suggest" ) {
+if( defined $ARGV[0] && $ARGV[0] eq "suggest" ) {
     foreach my $key (keys %modes) {
         printf("%s\n", $key);
     }
