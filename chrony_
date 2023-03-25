@@ -11,6 +11,7 @@
 use strict;
 use File::Spec;
 use Fcntl qw(:flock);
+use IPC::Run qw(run);
 
 my %modes = (
   "frequency" => {
@@ -170,7 +171,10 @@ sub get_chronyc_sources {
   my $data;
 
   # 一時ファイルを書き込めないことがあるので、毎回実行する
-  return`$chronyc sourcestats`;
+  my @cmd = ($chronyc, 'sourcestats');
+  run \@cmd, '>', \my $stdout;
+
+  return $stdout;
 
   # 1分以内に取得したデータがあればそれを使う
   if (-e $filename && $time - (stat $filename)[9] < 60) {
