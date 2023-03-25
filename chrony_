@@ -113,8 +113,8 @@ foreach my $line (@lines) {
     $value = sprintf("%b", oct($value)) =~ tr/1//;
   }
 
-  # NR が 4 以上のものだけを表示する
-  if( 4 <= $fields[2] ) {
+  # NR が 4 以上で、Span が 60以上のものだけを表示する
+  if( 4 <= $fields[2] && 60 <= expand_suffix($fields[3]) ) {
     printf("%s.value %e\n", host2name($host), $value);
   }
 }
@@ -125,7 +125,7 @@ sub expand_suffix {
   my $s = shift;
   if( $s =~ m/([+-]?\d+)([a-z]*)/ ) {
     my $v = $1;
-    if( $2 eq 's' ) {
+    if( $2 eq '' or $2 eq 's') {
     }elsif( $2 eq 'ms' ) {
       $v *= 1e-3;
     }elsif( $2 eq 'us' ) {
@@ -163,7 +163,8 @@ sub host2name {
 sub get_chronyc_sources {
   # 1分以内に取得したデータはキャッシュする
   my $user = getpwuid($>);
-  my $tempdir = ( File::Spec->tmpdir or '/tmp' );
+  my $tempdir = '/tmp';
+  $tempdir = File::Spec->tmpdir if -d File::Spec->tmpdir;
   my $filename = $tempdir.'/munin.chronyc.sourcestats.'.$user.'.dat';
   my $time = time;
   my $data;
