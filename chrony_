@@ -90,9 +90,10 @@ if( defined $ARGV[0] && $ARGV[0] eq "config" ) {
     foreach my $line (@lines) {
       my @fields = split(/[\s>]+/, $line);
       my $host = $fields[0];
-      printf("%s.label %s\n", host2name($host), $host);
-      printf("%s.type GAUGE\n", host2name($host) );
-      printf("%s.draw LINE\n", host2name($host));
+      my $name = host2name($host, 'ntp');
+      printf("%s.label %s\n", $name, $host);
+      printf("%s.type GAUGE\n", $name );
+      printf("%s.draw LINE\n", $name );
     }
     exit 0;
 }
@@ -121,7 +122,7 @@ foreach my $line (@lines) {
 
   # NR が 4 以上で、Span が 60以上のものだけを表示する
   if( 4 <= $fields[2] && 60 <= expand_suffix($fields[3]) ) {
-    printf("%s.value %e\n", host2name($host), $value);
+    printf("%s.value %e\n", host2name($host, 'ntp'), $value);
   }
 }
 exit 0;
@@ -161,7 +162,9 @@ sub expand_suffix {
 # ホスト名から要素名を作る
 sub host2name {
   my $host = shift;
+  my $prefix = shift;
   $host =~ s/[^a-zA-Z0-9_]//g;
+  $host = $prefix . "_" . $host if( defined $prefix );
   return $host;
 }
 
