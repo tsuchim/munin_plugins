@@ -1,0 +1,250 @@
+#!/usr/bin/perl
+# -*- sh -*-
+#
+# Plugin to monitor Caddy status codes.
+#
+# SELinux のポリシー設定コマンド
+# semanage fcontext -a -t unconfined_munin_plugin_exec_t '/usr/local/share/munin/plugins/caddy_'
+#
+#%# family=webserver
+#
+# config
+#
+# [caddy_*]
+# env.log_dir /var/log/caddy
+# env.munin_plugstate /var/lib/munin-node/plugin-state/caddy
+# user caddy
+#
+# log sample
+# {"level":"info","ts":1707236928.1989086,"logger":"http.log.access.log0","msg":"handled request","request":{"remote_ip":"45.77.158.25","remote_port":"37827","client_ip":"45.77.158.25","proto":"HTTP/3.0","method":"HEAD","host":"higpt.eikai.co.jp","uri":"/","headers":{"User-Agent":["http3check.net/lsquic/4.0.0"]},"tls":{"resumed":true,"version":772,"cipher_suite":4865,"proto":"h3","server_name":"higpt.eikai.co.jp"}},"bytes_read":0,"user_id":"","duration":0.004270907,"size":0,"status":200,"resp_headers":{"X-Frame-Options":["DENY"],"Content-Length":["1955"],"Vary":["Cookie"],"Date":["Tue, 06 Feb 2024 16:28:48 GMT"],"Cross-Origin-Opener-Policy":["same-origin"],"Strict-Transport-Security":["max-age=34560000; preload"],"Alt-Svc":["h3=\":443\"; ma=34560000; quic=\":443\"; ma=34560000"],"Content-Type":["text/html; charset=utf-8"],"X-Content-Type-Options":["nosniff"],"Referrer-Policy":["same-origin"]}}
+
+
+use strict;
+use warnings;
+use File::Find;
+use Time::Piece;
+use Munin::Plugin;
+use File::Spec;
+use Fcntl qw(:flock);
+use IPC::Run qw(run);
+use File::Basename;
+use JSON;
+
+my $MUNIN_PLUGSTATE = $ENV{munin_plugstate} ? $ENV{munin_plugstate} : "/var/lib/munin-node/plugin-state/caddy";
+my $LOG_DIR = $ENV{log_dir} ? $ENV{log_dir} : "/var/log/caddy";
+my @log_files;
+
+my %modes = (
+    "status" => {
+        "config" => {
+            "title" => "Frequency",
+            "args" => "--base 1000",
+            "vlabel" => "number/interval",
+        },
+    },
+    "proto" => {
+        "config" => {
+        "title" => "Protocol",
+        "args" => "--base 1000",
+        "vlabel" => "number/interval",
+        },
+    },
+    "host" => {
+        "config" => {
+        "title" => "Host",
+        "args" => "--base 1000",
+        "vlabel" => "number/interval",
+        },
+    },
+    "duration" => {
+        "config" => {
+        "title" => "Duration",
+        "args" => "--base 1000",
+        "vlabel" => "sec",
+        },
+    },
+);
+my %values = ('status'=>{}, 'proto'=>{}, 'host'=>{});
+my %labels = ('status'=>{}, 'proto'=>{}, 'host'=>{});
+
+my $mode;
+if ( $0 =~ m/_([a-z]+)$/ ) {
+	$mode = $1;
+	if( ! defined $modes{$mode} ) {
+		print join(',',keys(%modes));
+		die "Unknown mode $mode";
+	}
+}
+
+# 24時間以内に更新のあったログファイル名のリストを取得
+find(
+	sub {
+		return unless -f;
+		my $mtime = (stat($_))[9];
+		my $ten_minutes_ago = localtime->epoch - 24 * 60 * 60;
+		if ($mtime > $ten_minutes_ago) {
+			push @log_files, $File::Find::name;
+		}
+	},
+	$LOG_DIR
+);
+
+
+# durationの値を保存するための新しい変数を作成
+my $duration_min;
+my $duration_max;
+my $duration_sum = 0;
+my $duration_count = 0;
+my %duration_cols = ('min'=>'min', 'max'=>'max', 'avg'=>'average');
+
+# ログファイルを読み込む
+foreach my $file (@log_files) {
+	my $pos;
+	my $fh;
+	my $reset;
+
+	# 状態ファイルの名前を設定
+	my $state_name = basename($file) . "." . $mode . ".last_position";
+	my $state_file = "$MUNIN_PLUGSTATE/$state_name";
+
+    if ($ARGV[0] && $ARGV[0] eq "config") {
+        # config の時はログを全て読み込む
+        $pos = 0;
+    }else{
+        # 前回の読み込み位置を復元
+        if (-e $state_file) {
+            open my $state_fh, '<', $state_file or die "Can't open '$state_file': $!";
+            chomp($pos = <$state_fh>);
+            close $state_fh;
+        }
+        $pos = 0 unless defined($pos);
+    }
+
+	# ログファイルを開く
+	($fh,$reset) = Munin::Plugin::tail_open($file, $pos);
+
+	# ログファイルを読み込む
+	while (<$fh>) {
+		chomp;
+		my $data = decode_json($_);
+		if (defined $data->{status}) {
+            $labels{status}{name2var($data->{status})} = $data->{status};
+			$values{status}{$data->{status}}++;
+		}
+        if (defined $data->{request}->{proto}) {
+            $labels{proto}{name2var($data->{request}->{proto})} = $data->{request}->{proto};
+            $values{proto}{name2var($data->{request}->{proto})}++;
+        }
+        if (defined $data->{request}->{host}) {
+            $labels{host}{name2var($data->{request}->{host})} = $data->{request}->{host};
+            $values{host}{name2var($data->{request}->{host})}++;
+        }
+        # durationの値を更新
+        if (defined $data->{duration} && defined $data->{status} && $data->{status} == 200) {
+            $duration_min = $data->{duration} if !defined($duration_min) || $data->{duration} < $duration_min;
+            $duration_max = $data->{duration} if !defined($duration_max) || $data->{duration} > $duration_max;
+            $duration_sum += $data->{duration};
+            $duration_count++;
+        }
+	}
+
+	# ログファイルを閉じる
+	$pos = Munin::Plugin::tail_close($fh);
+
+	# 読み込み位置を保存
+	open my $state_fh, '>', $state_file or die "Can't open '$state_file': $!";
+	print $state_fh "$pos\n";
+	close $state_fh;
+}
+
+# Munin-nodeが期待する形式で出力
+if ($ARGV[0]) {
+	if ($ARGV[0] eq "config") {
+        if ($mode eq 'status') { 
+            print "graph_title Caddy status codes\n";
+            print "graph_args --base 1000\n";
+            print "graph_vlabel number/interval\n";
+            print "graph_category webserver\n";
+            foreach my $status (sort keys %{$values{status}}) {
+                print "_$status.label $labels{status}{$status}\n";
+                print "_$status.type GAUGE\n";
+                print "_$status.draw LINE\n";
+            }
+        } elsif ($mode eq 'proto') {
+            print "graph_title Caddy protocol\n";
+            print "graph_args --base 1000\n";
+            print "graph_vlabel number/interval\n";
+            print "graph_category webserver\n";
+            foreach my $proto (sort keys %{$values{proto}}) {
+                print "_$proto.label $labels{proto}{$proto}\n";
+                print "_$proto.type GAUGE\n";
+                print "_$proto.draw LINE\n";
+            }
+        } elsif ($mode eq 'host') {
+            print "graph_title Caddy host\n";
+            print "graph_args --base 1000\n";
+            print "graph_vlabel number/interval\n";
+            print "graph_category webserver\n";
+            foreach my $host (sort keys %{$values{host}}) {
+                print "_$host.label $labels{host}{$host}\n";
+                print "_$host.type GAUGE\n";
+                print "_$host.draw LINE\n";
+            }
+        } elsif ($mode eq 'duration') {
+            print "graph_title Caddy request average duration\n";
+            print "graph_args --base 1000\n";
+            print "graph_vlabel number/interval\n";
+            print "graph_category webserver\n";
+            foreach my $key (keys %duration_cols) {
+                print "_duration_$key.label ${duration_cols{$key}}\n";
+                print "_duration_$key.type GAUGE\n";
+                print "_duration_$key.draw LINE\n";
+            }
+        }else{
+            die("Unknown mode $mode");
+        }
+	} elsif ($ARGV[0] eq "autoconf") {
+		if (-d $LOG_DIR) {
+			print "yes\n";
+		} else {
+			print "no (cannot find directory $LOG_DIR)\n";
+		}
+	} elsif ($ARGV[0] eq "suggest") {
+		foreach my $m (keys %modes) {
+            print "$m\n";
+		}
+	}
+} else {
+    if ($mode eq 'status') {
+        foreach my $status (sort keys %{$values{status}}) {
+            print "_$status.value $values{status}{$status}\n";
+        }
+    } elsif ($mode eq 'proto') {
+        foreach my $proto (sort keys %{$values{proto}}) {
+            print "_$proto.value $values{proto}{$proto}\n";
+        }
+    } elsif ($mode eq 'host') {
+        foreach my $host (sort keys %{$values{host}}) {
+            print "_$host.value $values{host}{$host}\n";
+        }
+    } elsif ($mode eq 'duration') {
+        if ($duration_count > 0) {
+            my $duration_avg = $duration_sum / $duration_count;
+            print "_duration_min.value $duration_min\n";
+            print "_duration_max.value $duration_max\n";
+            print "_duration_avg.value $duration_avg\n";
+        }
+    }else{
+        die("Unknown mode $mode");
+    }
+}
+
+exit 0;
+
+# 文字列を変数名に変換 英字は小文字に、数字はそのまま、それ以外は_に変換
+sub name2var {
+    my $name = shift;
+    $name =~ s/[^a-zA-Z0-9]+/_/g;
+    $name = lc($name);
+    return $name;
+}
