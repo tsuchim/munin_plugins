@@ -87,10 +87,10 @@ find(
 		return unless -f;
 		my $mtime = (stat($_))[9];
         # ファイル名がaccess.logで終わるファイルのみを対象とする
-        continue if /access\.log$/;
+        return if /access\.log$/;
         # 一定時間内に更新のあったログファイルのみを対象とする
-		continue if ($mtime < $new_log_time);
-        
+		return if ($mtime < $new_log_time);
+
 	    push @log_files, $File::Find::name;
 	},
 	$LOG_DIR
@@ -114,9 +114,13 @@ foreach my $file (@log_files) {
 	my $state_name = basename($file) . "." . $mode . ".last_position";
 	my $state_file = "$MUNIN_PLUGSTATE/$state_name";
 
-    if ($ARGV[0] && $ARGV[0] eq "config") {
-        # config の時はログを全て読み込む
-        $pos = 0;
+    if ($ARGV[0]) {
+        if ($ARGV[0] eq "config") {
+            # config の時はログを全て読み込む
+            $pos = 0;
+        }else{
+            last;
+        }
     }else{
         # 前回の読み込み位置を復元
         if (-e $state_file) {
