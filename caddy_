@@ -15,6 +15,10 @@
 # env.munin_plugstate /var/lib/munin-node/plugin-state/caddy
 # user caddy
 #
+# add user to group
+#
+# usermod -a -G caddy munin
+#
 # log sample
 # {"level":"info","ts":1707236928.1989086,"logger":"http.log.access.log0","msg":"handled request","request":{"remote_ip":"45.77.158.25","remote_port":"37827","client_ip":"45.77.158.25","proto":"HTTP/3.0","method":"HEAD","host":"higpt.eikai.co.jp","uri":"/","headers":{"User-Agent":["http3check.net/lsquic/4.0.0"]},"tls":{"resumed":true,"version":772,"cipher_suite":4865,"proto":"h3","server_name":"higpt.eikai.co.jp"}},"bytes_read":0,"user_id":"","duration":0.004270907,"size":0,"status":200,"resp_headers":{"X-Frame-Options":["DENY"],"Content-Length":["1955"],"Vary":["Cookie"],"Date":["Tue, 06 Feb 2024 16:28:48 GMT"],"Cross-Origin-Opener-Policy":["same-origin"],"Strict-Transport-Security":["max-age=34560000; preload"],"Alt-Svc":["h3=\":443\"; ma=34560000; quic=\":443\"; ma=34560000"],"Content-Type":["text/html; charset=utf-8"],"X-Content-Type-Options":["nosniff"],"Referrer-Policy":["same-origin"]}}
 
@@ -77,14 +81,17 @@ if ( $0 =~ m/_([a-z]+)$/ ) {
 }
 
 # 24時間以内に更新のあったログファイル名のリストを取得
+my $new_log_time = localtime->epoch - 24 * 60 * 60;
 find(
 	sub {
 		return unless -f;
 		my $mtime = (stat($_))[9];
-		my $ten_minutes_ago = localtime->epoch - 24 * 60 * 60;
-		if ($mtime > $ten_minutes_ago) {
-			push @log_files, $File::Find::name;
-		}
+        # ファイル名がaccess.logで終わるファイルのみを対象とする
+        continue if /access\.log$/;
+        # 一定時間内に更新のあったログファイルのみを対象とする
+		continue if ($mtime < $new_log_time);
+        
+	    push @log_files, $File::Find::name;
 	},
 	$LOG_DIR
 );
