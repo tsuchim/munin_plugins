@@ -87,7 +87,7 @@ find(
 		return unless -f;
 		my $mtime = (stat($_))[9];
         # ファイル名がaccess.logで終わるファイルのみを対象とする
-        return if /access\.log$/;
+        return unless /access\.log$/;
         # 一定時間内に更新のあったログファイルのみを対象とする
 		return if ($mtime < $new_log_time);
 
