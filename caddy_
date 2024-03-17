@@ -27,6 +27,7 @@ use strict;
 use warnings;
 use File::Find;
 use Time::Piece;
+use Time::HiRes qw(time);
 use Munin::Plugin;
 use File::Spec;
 use Fcntl qw(:flock);
@@ -134,11 +135,12 @@ foreach my $file (@log_files) {
 	# ログファイルを開く
 	($fh,$reset) = Munin::Plugin::tail_open($file, $pos);
 
-	# ログファイルを読み込む
-    my $nlines = 0;
-	while (<$fh>) {
-        last if $nlines++ > 1000;
-		chomp;
+    # ログファイルを読み込む
+    my $start_time = time;
+    while (<$fh>) {
+        my $current_time = time;
+        last if $current_time - $start_time > 10;
+        chomp;
         my $data = decode_json($_);
 		if (defined $data->{status}) {
             $labels{status}{name2var($data->{status})} = $data->{status};
