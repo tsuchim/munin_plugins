@@ -166,6 +166,11 @@ foreach my $file (@log_files) {
 	# ログファイルを閉じる
 	$pos = Munin::Plugin::tail_close($fh);
 
+    # config の場合には、読み込み位置を末端にする
+    if ($ARGV[0] && $ARGV[0] eq "config") {
+        $pos = -s $file;
+    }
+
 	# 読み込み位置を保存
 	open my $state_fh, '>', $state_file or die "Can't open '$state_file': $!";
 	print $state_fh "$pos\n";
