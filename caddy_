@@ -117,8 +117,7 @@ foreach my $file (@log_files) {
     if ($ARGV[0]) {
         if ($ARGV[0] eq "config") {
             # config の時はログを全て読み込む(ただし、最大1MBまで)
-            $pos = -s $file - 1024 * 1024;
-            $pos = 0 if $pos < 0;
+            $pos = 0;
         }else{
             last;
         }
@@ -136,9 +135,11 @@ foreach my $file (@log_files) {
 	($fh,$reset) = Munin::Plugin::tail_open($file, $pos);
 
 	# ログファイルを読み込む
+    my $nlines = 0;
 	while (<$fh>) {
+        last if $nlines++ > 1000;
 		chomp;
-		my $data = decode_json($_);
+        my $data = decode_json($_);
 		if (defined $data->{status}) {
             $labels{status}{name2var($data->{status})} = $data->{status};
 			$values{status}{$data->{status}}++;
