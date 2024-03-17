@@ -116,8 +116,8 @@ foreach my $file (@log_files) {
 
     if ($ARGV[0]) {
         if ($ARGV[0] eq "config") {
-            # config の時はログを全て読み込む
-            $pos = 0;
+            # config の時はログを全て読み込む(ただし、最大1MBまで)
+            $pos = -s $file - 1024 * 1024;
         }else{
             last;
         }
