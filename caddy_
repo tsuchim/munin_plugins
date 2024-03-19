@@ -117,16 +117,26 @@ foreach my $file (@log_files) {
 
     if ($ARGV[0]) {
         if ($ARGV[0] eq "config") {
-            # config の時はログを全て読み込む(ただし、最大1MBまで)
+            # config の時はログを全て読み込む
             $pos = 0;
         }else{
             last;
         }
     }else{
-        # 前回の読み込み位置を復元
+        # 前回の読み込み位置とラベルを復元
         if (-e $state_file) {
             open my $state_fh, '<', $state_file or die "Can't open '$state_file': $!";
             chomp($pos = <$state_fh>);
+            while (<$state_fh>) {
+                chomp;
+                my ($key, $value, $count) = split(' ', $_, 3);
+                $count = int($count*0.8); # ゆっくり decay させて古いエントリを削除
+                if ($count) {
+                    $labels{$mode}{$key}{name} = $value;
+                    $labels{$mode}{$key}{count} = $count;
+                    $values{$mode}{$value} += 0;
+                }
+            }
             close $state_fh;
         }
         $pos = 0 unless defined($pos);
@@ -143,15 +153,18 @@ foreach my $file (@log_files) {
         chomp;
         my $data = decode_json($_);
 		if (defined $data->{status}) {
-            $labels{status}{name2var($data->{status})} = $data->{status};
+            $labels{status}{name2var($data->{status})}{name} = $data->{status};
+            $labels{status}{name2var($data->{status})}{count}++;
 			$values{status}{$data->{status}}++;
 		}
         if (defined $data->{request}->{proto}) {
-            $labels{proto}{name2var($data->{request}->{proto})} = $data->{request}->{proto};
+            $labels{proto}{name2var($data->{request}->{proto})}{name} = $data->{request}->{proto};
+            $labels{proto}{name2var($data->{request}->{proto})}{count}++;
             $values{proto}{name2var($data->{request}->{proto})}++;
         }
         if (defined $data->{request}->{host}) {
-            $labels{host}{name2var($data->{request}->{host})} = $data->{request}->{host};
+            $labels{host}{name2var($data->{request}->{host})}{name} = $data->{request}->{host};
+            $labels{host}{name2var($data->{request}->{host})}{count}++;
             $values{host}{name2var($data->{request}->{host})}++;
         }
         # durationの値を更新
@@ -171,9 +184,12 @@ foreach my $file (@log_files) {
         $pos = -s $file;
     }
 
-	# 読み込み位置を保存
+	# 読み込み位置とラベルを保存
 	open my $state_fh, '>', $state_file or die "Can't open '$state_file': $!";
 	print $state_fh "$pos\n";
+    foreach my $key (keys %{$labels{$mode}}) {
+        print $state_fh "$key $labels{$mode}{$key}{name} $labels{$mode}{$key}{count}\n";
+    }
 	close $state_fh;
 }
 
@@ -186,7 +202,7 @@ if ($ARGV[0]) {
             print "graph_vlabel number/interval\n";
             print "graph_category webserver\n";
             foreach my $status (sort keys %{$values{status}}) {
-                print "_$status.label $labels{status}{$status}\n";
+                print "_$status.label $labels{status}{$status}{name}\n";
                 print "_$status.type GAUGE\n";
                 print "_$status.draw LINE\n";
             }
@@ -196,7 +212,7 @@ if ($ARGV[0]) {
             print "graph_vlabel number/interval\n";
             print "graph_category webserver\n";
             foreach my $proto (sort keys %{$values{proto}}) {
-                print "_$proto.label $labels{proto}{$proto}\n";
+                print "_$proto.label $labels{proto}{$proto}{name}\n";
                 print "_$proto.type GAUGE\n";
                 print "_$proto.draw LINE\n";
             }
@@ -206,7 +222,7 @@ if ($ARGV[0]) {
             print "graph_vlabel number/interval\n";
             print "graph_category webserver\n";
             foreach my $host (sort keys %{$values{host}}) {
-                print "_$host.label $labels{host}{$host}\n";
+                print "_$host.label $labels{host}{$host}{name}\n";
                 print "_$host.type GAUGE\n";
                 print "_$host.draw LINE\n";
             }
