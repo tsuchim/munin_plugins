@@ -115,32 +115,23 @@ foreach my $file (@log_files) {
 	my $state_name = basename($file) . "." . $mode . ".last_position";
 	my $state_file = "$MUNIN_PLUGSTATE/$state_name";
 
-    if ($ARGV[0]) {
-        if ($ARGV[0] eq "config") {
-            # config の時はログを全て読み込む
-            $pos = 0;
-        }else{
-            last;
-        }
-    }else{
-        # 前回の読み込み位置とラベルを復元
-        if (-e $state_file) {
-            open my $state_fh, '<', $state_file or die "Can't open '$state_file': $!";
-            chomp($pos = <$state_fh>);
-            while (<$state_fh>) {
-                chomp;
-                my ($key, $value, $count) = split(' ', $_, 3);
-                $count = int($count*0.8); # ゆっくり decay させて古いエントリを削除
-                if ($count) {
-                    $labels{$mode}{$key}{name} = $value;
-                    $labels{$mode}{$key}{count} = $count;
-                    $values{$mode}{$value} += 0;
-                }
+    # 前回の読み込み位置とラベルを復元
+    if (-e $state_file) {
+        open my $state_fh, '<', $state_file or die "Can't open '$state_file': $!";
+        chomp($pos = <$state_fh>);
+        while (<$state_fh>) {
+            chomp;
+            my ($key, $name, $count) = split(' ', $_, 3);
+            $count = int($count*0.8); # ゆっくり decay させて古いエントリを削除
+            if ($count) {
+                $labels{$mode}{$key}{name} = $name;
+                $labels{$mode}{$key}{count} = $count;
+                $values{$mode}{$key} += 0;
             }
-            close $state_fh;
         }
-        $pos = 0 unless defined($pos);
+        close $state_fh;
     }
+    $pos = 0 unless defined($pos);
 
 	# ログファイルを開く
 	($fh,$reset) = Munin::Plugin::tail_open($file, $pos);
