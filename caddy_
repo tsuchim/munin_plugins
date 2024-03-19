@@ -153,19 +153,22 @@ foreach my $file (@log_files) {
         chomp;
         my $data = decode_json($_);
 		if (defined $data->{status}) {
-            $labels{status}{name2var($data->{status})}{name} = $data->{status};
-            $labels{status}{name2var($data->{status})}{count}++;
-			$values{status}{$data->{status}}++;
+            my $label = name2var($data->{status});
+            $labels{status}{$label}{name} = $data->{status};
+            $labels{status}{$label}{count}++;
+			$values{status}{$label}++;
 		}
         if (defined $data->{request}->{proto}) {
-            $labels{proto}{name2var($data->{request}->{proto})}{name} = $data->{request}->{proto};
-            $labels{proto}{name2var($data->{request}->{proto})}{count}++;
-            $values{proto}{name2var($data->{request}->{proto})}++;
+            my $label = name2var($data->{request}->{proto});
+            $labels{proto}{$label}{name} = $data->{request}->{proto};
+            $labels{proto}{$label}{count}++;
+            $values{proto}{$label}++;
         }
         if (defined $data->{request}->{host}) {
-            $labels{host}{name2var($data->{request}->{host})}{name} = $data->{request}->{host};
-            $labels{host}{name2var($data->{request}->{host})}{count}++;
-            $values{host}{name2var($data->{request}->{host})}++;
+            my $label = name2var($data->{request}->{host});
+            $labels{host}{$label}{name} = $data->{request}->{host};
+            $labels{host}{$label}{count}++;
+            $values{host}{$label}++;
         }
         # durationの値を更新
         if (defined $data->{duration} && defined $data->{status} && $data->{status} == 200) {
