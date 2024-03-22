@@ -133,6 +133,17 @@ foreach my $file (@log_files) {
     }
     $pos = 0 unless defined($pos);
 
+    # config の場合には、読み込み位置を 1MB 戻す
+    if ($ARGV[0] && $ARGV[0] eq "config") {
+        $pos = -1024 * 1024;
+        $pos = 0 if $pos < 0;
+    }
+
+    # ログファイルのサイズを超えていたら、読み込み位置を 0 に戻す
+    if ( -s $file < $pos ) {
+        $pos = 0;
+    }
+
 	# ログファイルを開く
 	($fh,$reset) = Munin::Plugin::tail_open($file, $pos);
 
