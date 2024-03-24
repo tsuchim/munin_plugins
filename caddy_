@@ -269,11 +269,15 @@ if ($ARGV[0]) {
             print "_$host.value $values{host}{$host}\n";
         }
     } elsif ($mode eq 'duration') {
-        if ($duration_count > 0) {
+        if (0 < $duration_count ) {
             my $duration_avg = $duration_sum / $duration_count;
             print "_duration_min.value $duration_min\n";
             print "_duration_max.value $duration_max\n";
             print "_duration_avg.value $duration_avg\n";
+        }else{
+            print "_duration_min.value U\n";
+            print "_duration_max.value U\n";
+            print "_duration_avg.value U\n";
         }
     }else{
         die("Unknown mode $mode");
