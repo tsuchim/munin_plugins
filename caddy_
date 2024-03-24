@@ -81,6 +81,24 @@ if ( $0 =~ m/_([a-z]+)$/ ) {
 	}
 }
 
+if($ARGV[0]) {
+	if ($ARGV[0] eq "autoconf") {
+		if (-d $LOG_DIR) {
+			print "yes\n";
+            exit 0;
+		} else {
+			print "no (cannot find directory $LOG_DIR)\n";
+            exit 1;
+		}
+	} elsif ($ARGV[0] eq "suggest") {
+		foreach my $m (keys %modes) {
+            print "$m\n";
+		}
+        exit 0;
+	}
+}
+
+
 # 24時間以内に更新のあったログファイル名のリストを取得
 my $new_log_time = localtime->epoch - 24 * 60 * 60;
 find(
@@ -244,44 +262,37 @@ if ($ARGV[0]) {
         }else{
             die("Unknown mode $mode");
         }
-	} elsif ($ARGV[0] eq "autoconf") {
-		if (-d $LOG_DIR) {
-			print "yes\n";
-		} else {
-			print "no (cannot find directory $LOG_DIR)\n";
-		}
-	} elsif ($ARGV[0] eq "suggest") {
-		foreach my $m (keys %modes) {
-            print "$m\n";
-		}
-	}
-} else {
-    if ($mode eq 'status') {
-        foreach my $status (sort keys %{$values{status}}) {
-            print "_$status.value $values{status}{$status}\n";
-        }
-    } elsif ($mode eq 'proto') {
-        foreach my $proto (sort keys %{$values{proto}}) {
-            print "_$proto.value $values{proto}{$proto}\n";
-        }
-    } elsif ($mode eq 'host') {
-        foreach my $host (sort keys %{$values{host}}) {
-            print "_$host.value $values{host}{$host}\n";
-        }
-    } elsif ($mode eq 'duration') {
-        if (0 < $duration_count ) {
-            my $duration_avg = $duration_sum / $duration_count;
-            print "_duration_min.value $duration_min\n";
-            print "_duration_max.value $duration_max\n";
-            print "_duration_avg.value $duration_avg\n";
-        }else{
-            print "_duration_min.value U\n";
-            print "_duration_max.value U\n";
-            print "_duration_avg.value U\n";
-        }
+        exit 0;
     }else{
-        die("Unknown mode $mode");
+        die("Unknown command $ARGV[0]")
     }
+}
+
+if ($mode eq 'status') {
+    foreach my $status (sort keys %{$values{status}}) {
+        print "_$status.value $values{status}{$status}\n";
+    }
+} elsif ($mode eq 'proto') {
+    foreach my $proto (sort keys %{$values{proto}}) {
+        print "_$proto.value $values{proto}{$proto}\n";
+    }
+} elsif ($mode eq 'host') {
+    foreach my $host (sort keys %{$values{host}}) {
+        print "_$host.value $values{host}{$host}\n";
+    }
+} elsif ($mode eq 'duration') {
+    if (0 < $duration_count ) {
+        my $duration_avg = $duration_sum / $duration_count;
+        print "_duration_min.value $duration_min\n";
+        print "_duration_max.value $duration_max\n";
+        print "_duration_avg.value $duration_avg\n";
+    }else{
+        print "_duration_min.value U\n";
+        print "_duration_max.value U\n";
+        print "_duration_avg.value U\n";
+    }
+}else{
+    die("Unknown mode $mode");
 }
 
 exit 0;
