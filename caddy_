@@ -125,7 +125,7 @@ my %duration_cols = ('min'=>'min', 'max'=>'max', 'avg'=>'average');
 
 # ログファイルを読み込む
 foreach my $file (@log_files) {
-	my $pos;
+	my $pos = 0;
 	my $fh;
 	my $reset;
 
@@ -149,21 +149,27 @@ foreach my $file (@log_files) {
         }
         close $state_fh;
     }
-    $pos = 0 unless defined($pos);
 
-    # config の場合には、読み込み位置を 1MB 戻す
+    # config の場合には、読み込み位置を戻してたくさん解析する
     if ($ARGV[0] && $ARGV[0] eq "config") {
-        $pos = -1024 * 1024;
+        $pos -= 1024 * 1024;
         $pos = 0 if $pos < 0;
     }
 
     # ログファイルのサイズを超えていたら、読み込み位置を 0 に戻す
-    if ( -s $file < $pos ) {
+    if ( $pos > -s $file ) {
         $pos = 0;
     }
 
 	# ログファイルを開く
-	($fh,$reset) = Munin::Plugin::tail_open($file, $pos);
+    if( 0 < $pos ) {
+        # 1バイト前から改行まで読み込む
+    	($fh,$reset) = Munin::Plugin::tail_open($file, $pos-1);
+        $_ = <$fh>;
+    }else{
+        # 先頭からなら、そのまま開く
+        ($fh,$reset) = Munin::Plugin::tail_open($file, $pos);
+    }
 
     # ログファイルを読み込む
     my $start_time = time;
