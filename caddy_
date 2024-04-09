@@ -152,7 +152,7 @@ foreach my $file (@log_files) {
 
     # config の場合には、読み込み位置を戻してたくさん解析する
     if ($ARGV[0] && $ARGV[0] eq "config") {
-        $pos -= 1024 * 1024;
+        $pos -= 64 * 1024;
         $pos = 0 if $pos < 0;
     }
 
@@ -208,18 +208,22 @@ foreach my $file (@log_files) {
 	# ログファイルを閉じる
 	$pos = Munin::Plugin::tail_close($fh);
 
-    # config の場合には、読み込み位置を末端にする
+    # config でファイルを最初からスキャンした場合には、読み込み位置を末端にする
     if ($ARGV[0] && $ARGV[0] eq "config") {
-        $pos = -s $file;
+        if( $pos <= 0 ) {
+            $pos = -s $file;
+        }
     }
 
 	# 読み込み位置とラベルを保存
-	open my $state_fh, '>', $state_file or die "Can't open '$state_file': $!";
-	print $state_fh "$pos\n";
-    foreach my $key (keys %{$labels{$mode}}) {
-        print $state_fh "$key $labels{$mode}{$key}{name} $labels{$mode}{$key}{count}\n";
+    if( ! $ARGV[0] ) {
+        open my $state_fh, '>', $state_file or die "Can't open '$state_file': $!";
+        print $state_fh "$pos\n";
+        foreach my $key (keys %{$labels{$mode}}) {
+            print $state_fh "$key $labels{$mode}{$key}{name} $labels{$mode}{$key}{count}\n";
+        }
+        close $state_fh;
     }
-	close $state_fh;
 }
 
 # Munin-nodeが期待する形式で出力
